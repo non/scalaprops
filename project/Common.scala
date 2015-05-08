@@ -7,17 +7,6 @@ import xerial.sbt.Sonatype.SonatypeKeys
 
 object Common {
 
-  def shapelessDependency(scope: String) =
-    libraryDependencies ++= {
-      val v = "2.2.0"
-      if(scalaVersion.value.startsWith("2.10")) Seq(
-        "com.chuusai" %% "shapeless" % v % scope,
-        compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
-      ) else Seq(
-        "com.chuusai" %% "shapeless" % v % scope
-      )
-    }
-
   private[this] def gitHash = scala.util.Try(
     sys.process.Process("git rev-parse HEAD").lines_!.head
   ).getOrElse("master")
@@ -31,8 +20,7 @@ object Common {
   private[this] val Scala211 = "2.11.6"
 
   val commonSettings = scalaprops.ScalapropsPlugin.autoImport.scalapropsCoreSettings ++ Seq(
-    scalaVersion := Scala211,
-    crossScalaVersions := Scala211 :: "2.10.5" :: Nil,
+    scalaVersion := "2.12.0-M1",
     organization := "com.github.scalaprops",
     description := "property based testing library for Scala",
     homepage := Some(url("https://github.com/scalaprops/scalaprops")),

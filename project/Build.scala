@@ -39,12 +39,9 @@ object build extends Build {
     name := scalapropsName,
     libraryDependencies += "org.scala-sbt" % "test-interface" % "1.0",
     libraryDependencies += "org.scalaz" %% "scalaz-concurrent" % scalazVersion,
-    shapelessDependency("test"),
     testFrameworks += new TestFramework("scalaprops.ScalapropsFramework"),
     parallelExecution in Test := false
   ).dependsOn(core, scalazlaws % "test")
-
-  val sxr = TaskKey[File]("packageSxr")
 
   import UnidocKeys._
 
@@ -62,26 +59,11 @@ object build extends Build {
     artifacts := Nil,
     packagedArtifacts := Map.empty,
     artifacts <++= Classpaths.artifactDefs(Seq(packageDoc in Compile)),
-    packagedArtifacts <++= Classpaths.packaged(Seq(packageDoc in Compile)),
-    scalacOptions in UnidocKeys.unidoc += {
-      "-P:sxr:base-directory:" + (sources in UnidocKeys.unidoc in ScalaUnidoc).value.mkString(":")
-    }
+    packagedArtifacts <++= Classpaths.packaged(Seq(packageDoc in Compile))
   ).settings(
     Defaults.packageTaskSettings(
       packageDoc in Compile, (UnidocKeys.unidoc in Compile).map{_.flatMap(Path.allSubpaths)}
-    ) ++ Defaults.packageTaskSettings(
-      sxr in Compile, (crossTarget in Compile).map{ dir =>
-        Path.allSubpaths(dir / "unidoc.sxr").toSeq
-      }
     )
-  ).settings(
-    resolvers += "bintray/paulp" at "https://dl.bintray.com/paulp/maven",
-    addCompilerPlugin("org.improving" %% "sxr" % "1.0.1"),
-    sxr in Compile <<= (sxr in Compile).dependsOn(compile in Compile),
-    packagedArtifacts <++= Classpaths.packaged(Seq(sxr in Compile)),
-    artifacts <++= Classpaths.artifactDefs(Seq(sxr in Compile)),
-    artifactClassifier in sxr := Some("sxr"),
-    sxr in Compile <<= (sxr in Compile).dependsOn(UnidocKeys.unidoc in Compile)
   ).aggregate(
     core, scalaprops, scalazlaws
   )
