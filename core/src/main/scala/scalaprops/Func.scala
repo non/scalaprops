@@ -16,14 +16,14 @@ sealed abstract class Func[A, B] extends Product with Serializable {
     val list1 = table.map{ case (x, c) =>
       A.shows(x) + "->" + B.shows(c)
     }
-    val list2 = Foldable[Maybe].toIList(b.map(b => "_->" + B.shows(b)))
+    val list2 = Foldable[Maybe].toStream(b.map(b => "_->" + B.shows(b)))
 
-    (list1 ++ list2).foldLeft(new java.lang.StringBuilder("{")){
+    (list1 #::: list2).foldLeft(new java.lang.StringBuilder("{")){
       case (builder, str) => builder.append(str).append(", ")
     }.append("}").toString
   }
 
-  def table: IList[(A, B)]
+  def table: Stream[(A, B)]
 
   override final def toString = string(Maybe.empty[B])(Show.showA, Show.showA)
 }
@@ -40,7 +40,7 @@ object Func {
       }.toAbstract(d)(x)
     }
 
-    override def table: IList[((A, B), C)] =
+    override def table =
       a.table.flatMap{ case (x, q) =>
         q.table.map{ case (y, c) =>
           ((x, y), c)
@@ -57,11 +57,13 @@ object Func {
       case \/-(b) => y.toAbstract(d)(b)
     }
 
+    import scalaz.syntax.either._
+
     override def table =
-      x.table.map[(A \/ B, C)]{
-        case (x0, c) => -\/(x0) -> c
-      } ::: y.table.map[(A \/ B, C)]{
-        case (y0, c) => \/-(y0) -> c
+      x.table.map{
+        case (x0, c) => x0.left[B] -> c
+      } #::: y.table.map{
+        case (y0, c) => y0.right[A] -> c
       }
   }
 
@@ -73,7 +75,7 @@ object Func {
       _ => a
 
     override def table =
-      IList.single(((), a))
+      Stream(((), a))
   }
 
   private[scalaprops] final case class Nil[A, B]() extends Func[A, B] {
@@ -83,10 +85,10 @@ object Func {
     override def toAbstract(d: B) =
       _ => d
 
-    override def table = IList.empty
+    override def table = Stream.empty
   }
 
-  private[scalaprops] final case class Table[A, B](a: IList[(A, B)])(implicit val A: Equal[A]) extends Func[A, B] {
+  private[scalaprops] final case class Table[A, B](a: Stream[(A, B)])(implicit val A: Equal[A]) extends Func[A, B] {
     override def map[C](f: B => C): Func[A, C] =
       Table(a.map{case (x, y) => x -> f(y)})
 
@@ -95,7 +97,7 @@ object Func {
         case (x, y) if A.equal(aa, x) => y
       }.getOrElse(d)
 
-    override def table = a
+    override def table = a.toStream
   }
 
   private[scalaprops] final case class Map[A, B, C](
@@ -108,7 +110,7 @@ object Func {
     override def toAbstract(d: C): A => C =
       x andThen z.toAbstract(d)
 
-    override def table: IList[(A, C)] =
+    override def table =
       z.table.map{case (x0, c) => (y(x0), c)}
   }
 
@@ -126,6 +128,7 @@ object Func {
 
   implicit def equal[A: Equal, B: Equal]: Equal[Func[A, B]] = {
     import scalaz.std.tuple._
+    import scalaz.std.stream._
     Equal.equalBy(_.table)
   }
 }

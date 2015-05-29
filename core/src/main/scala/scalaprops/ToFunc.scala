@@ -17,6 +17,18 @@ abstract class ToFunc[A] { self =>
     xmap(iso.to, iso.from)
 }
 
+trait Read[A] {
+  def read(a: String): A
+  final def readF: String => A = read(_)
+}
+
+object Read {
+  def read[A](f: String => A): Read[A] =
+    new Read[A] {
+      def read(a: String) = f(a)
+    }
+}
+
 object ToFunc {
   @inline def apply[A](implicit A: ToFunc[A]): ToFunc[A] = A
 
@@ -25,6 +37,14 @@ object ToFunc {
 
   def functionMapIso[A, B, C](iso: A <=> B, f: A => C)(implicit B: ToFunc[B]): Func[A, C] =
     functionMap(iso.to, iso.from, f)
+
+  
+  //functionShow :: (Show a, Read a) => (a->c) -> (a:->c)
+  //functionShow f = functionMap show read f
+
+  def functionShow[A, B](f: A => B)(implicit S: Show[A], R: Read[A]): Func[A, B] =
+    functionMap[A, String, B](S.shows, R.readF, f)
+
 
   private[this] val UnitR = \/-(())
   private[this] val UnitL = -\/(())
@@ -120,11 +140,9 @@ object ToFunc {
       import scalaz.std.anyVal._
       def toFunc[B](f: Byte => B) =
         Func.Table(
-          IList.fromList(
-            (Byte.MinValue to Byte.MaxValue).map{ x =>
-              x.asInstanceOf[Byte] -> f(x.asInstanceOf[Byte])
-            }.toList
-          )
+          (Byte.MinValue to Byte.MaxValue).map{ x =>
+            x.asInstanceOf[Byte] -> f(x.asInstanceOf[Byte])
+          }.toStream
         )
     }
 
@@ -133,11 +151,9 @@ object ToFunc {
       import scalaz.std.anyVal._
       def toFunc[B](f: Short => B) =
         Func.Table(
-          IList.fromList(
-            (Short.MinValue to Short.MaxValue).map{ x =>
-              x.asInstanceOf[Short] -> f(x.asInstanceOf[Short])
-            }.toList
-          )
+          (Short.MinValue to Short.MaxValue).map{ x =>
+            x.asInstanceOf[Short] -> f(x.asInstanceOf[Short])
+          }.toStream
         )
     }
 
@@ -150,6 +166,12 @@ object ToFunc {
 
   implicit val int: ToFunc[Int] =
     ToFunc[(Byte, Byte, Byte, Byte)].xmapi(Iso.int)
+
+  implicit val char: ToFunc[Char] =
+    ToFunc[Int].xmap(_.toChar, _.toInt)
+
+  implicit val string: ToFunc[String] =
+    ToFunc[List[Char]].xmap(_.mkString, _.toList)
 
   implicit def tuple2[A1, A2](implicit
     A1: ToFunc[A1],
