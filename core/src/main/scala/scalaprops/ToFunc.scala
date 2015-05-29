@@ -38,14 +38,6 @@ object ToFunc {
   def functionMapIso[A, B, C](iso: A <=> B, f: A => C)(implicit B: ToFunc[B]): Func[A, C] =
     functionMap(iso.to, iso.from, f)
 
-  
-  //functionShow :: (Show a, Read a) => (a->c) -> (a:->c)
-  //functionShow f = functionMap show read f
-
-  def functionShow[A, B](f: A => B)(implicit S: Show[A], R: Read[A]): Func[A, B] =
-    functionMap[A, String, B](S.shows, R.readF, f)
-
-
   private[this] val UnitR = \/-(())
   private[this] val UnitL = -\/(())
 
@@ -59,15 +51,15 @@ object ToFunc {
         }
       }
 
-    val iList: IList <~> ({type l[a] = Unit \/ (a, IList[a])})#l =
-      new IsoFunctorTemplate[IList, ({type l[a] = Unit \/ (a, IList[a])})#l] {
-        def from[A](fa: Unit \/ (A, IList[A])) = fa match {
-          case \/-((h, t)) => h :: t
+    val iList: IList <~> ({type l[a] = Unit \/ LazyTuple2[a, IList[a]]})#l =
+      new IsoFunctorTemplate[IList, ({type l[a] = Unit \/ LazyTuple2[a, IList[a]]})#l] {
+        def from[A](fa: Unit \/ LazyTuple2[A, IList[A]]) = fa match {
+          case \/-(x) => x._1 :: x._2
           case -\/(_) => IList.empty[A]
         }
 
         def to[A](ga: IList[A]) = ga match {
-          case ICons(h, t) => \/-((h, t))
+          case ICons(h, t) => \/-(LazyTuple2(h, t))
           case INil() => UnitL
         }
       }
@@ -103,6 +95,7 @@ object ToFunc {
 
     type T4[A] = (A, A, A, A)
 
+    /*
     val int: T4[Byte] <=> Int =
       new Iso[Function1, T4[Byte], Int] {
         override def to: T4[Byte] => Int = { n =>
@@ -115,6 +108,7 @@ object ToFunc {
         }
       }
 
+*/
 
     val nel: ({type l[a] = (a, List[a])})#l <~> NonEmptyList =
       new IsoFunctorTemplate[({type l[a] = (a, List[a])})#l, NonEmptyList] {
@@ -158,58 +152,30 @@ object ToFunc {
     }
 
 
-  implicit val bigInt: ToFunc[BigInt] =
-    ToFunc[NonEmptyList[Byte]].xmapi(Iso.bigInt)
-
-  implicit val long: ToFunc[Long] =
-    ToFunc[BigInt].xmapi(Iso.long)
-
-  implicit val int: ToFunc[Int] =
-    ToFunc[(Byte, Byte, Byte, Byte)].xmapi(Iso.int)
-
-  implicit val char: ToFunc[Char] =
-    ToFunc[Int].xmap(_.toChar, _.toInt)
-
-  implicit val string: ToFunc[String] =
-    ToFunc[List[Char]].xmap(_.mkString, _.toList)
-
-  implicit def tuple2[A1, A2](implicit
+  implicit def lazyTuple2[A1, A2](implicit
     A1: ToFunc[A1],
     A2: ToFunc[A2]
-  ): ToFunc[(A1, A2)] = new ToFunc[(A1, A2)] {
-    def toFunc[B](f: Tuple2[A1, A2] => B) =
+  ): ToFunc[LazyTuple2[A1, A2]] = new ToFunc[LazyTuple2[A1, A2]] {
+    def toFunc[B](f: LazyTuple2[A1, A2] => B) =
       Func.Pair {
         A1.toFunc { a1 =>
           A2.toFunc { a2 =>
-            f((a1, a2))
+            f(LazyTuple2(a1, a2))
           }
         }
       }
   }
 
-  implicit def tuple3[A1, A2, A3](implicit
+
+  implicit def lazyTuple3[A1, A2, A3](implicit
     A1: ToFunc[A1],
     A2: ToFunc[A2],
     A3: ToFunc[A3]
-  ): ToFunc[(A1, A2, A3)] = new ToFunc[(A1, A2, A3)] {
-    def toFunc[B](f: ((A1, A2, A3)) => B) =
-      functionMap[(A1, A2, A3), (A1, (A2, A3)), B](
-        x => (x._1, (x._2, x._3)),
-        x => (x._1, x._2._1, x._2._2),
-        f
-      )
-  }
-
-  implicit def tuple4[A1, A2, A3, A4](implicit
-    A1: ToFunc[A1],
-    A2: ToFunc[A2],
-    A3: ToFunc[A3],
-    A4: ToFunc[A4]
-  ): ToFunc[(A1, A2, A3, A4)] = new ToFunc[(A1, A2, A3, A4)] {
-    def toFunc[B](f: ((A1, A2, A3, A4)) => B) =
-      functionMap[(A1, A2, A3, A4), ((A1, A2), (A3, A4)), B](
-        x => ((x._1, x._2), (x._3, x._4)),
-        x => (x._1._1, x._1._2, x._2._1, x._2._2),
+  ): ToFunc[LazyTuple3[A1, A2, A3]] = new ToFunc[LazyTuple3[A1, A2, A3]] {
+    def toFunc[B](f: LazyTuple3[A1, A2, A3] => B) =
+      functionMap[LazyTuple3[A1, A2, A3], LazyTuple2[A1, LazyTuple2[A2, A3]], B](
+        x => LazyTuple2(x._1, LazyTuple2(x._2, x._3)),
+        x => LazyTuple3(x._1, x._2._1, x._2._2),
         f
       )
   }
@@ -239,6 +205,4 @@ object ToFunc {
   implicit def list[A](implicit A: ToFunc[A]): ToFunc[List[A]] =
     ToFunc[IList[A]].xmapi(IList.listIListIso.flip.unlift[A])
 
-  implicit def nonEmptylist[A](implicit A: ToFunc[A]): ToFunc[NonEmptyList[A]] =
-    ToFunc[(A, List[A])].xmapi(Iso.nel.unlift[A])
 }

@@ -30,20 +30,20 @@ sealed abstract class Func[A, B] extends Product with Serializable {
 
 object Func {
 
-  private[scalaprops] final case class Pair[A, B, C](a: Func[A, Func[B, C]]) extends Func[(A, B), C] {
-    override def map[D](f: C => D): Func[(A, B), D] =
+  private[scalaprops] final case class Pair[A, B, C](a: Func[A, Func[B, C]]) extends Func[LazyTuple2[A, B], C] {
+    override def map[D](f: C => D): Func[LazyTuple2[A, B], D] =
       Pair(a.map(_.map(f)))
 
-    override def toAbstract(d: C): Tuple2[A, B] => C = {
-      case (x, y) => a.map{
-        _.toAbstract(d)(y)
-      }.toAbstract(d)(x)
+    override def toAbstract(d: C): LazyTuple2[A, B] => C = {
+      t => a.map{
+        _.toAbstract(d)(t._2)
+      }.toAbstract(d)(t._1)
     }
 
     override def table =
       a.table.flatMap{ case (x, q) =>
         q.table.map{ case (y, c) =>
-          ((x, y), c)
+          (LazyTuple2(x, y), c)
         }
       }
   }
