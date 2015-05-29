@@ -9,6 +9,8 @@ sealed abstract class Func[A, B] extends Product with Serializable {
   def map[C](f: B => C): Func[A, C]
   def toAbstract(d: B): A => B
 
+  final protected def notNil: Boolean = this.isInstanceOf[Func.Nil[_, _]] == false
+
   final def mkFun(b: B): Fun[A, B] =
     Fun(this, b, toAbstract(b))
 
@@ -25,10 +27,14 @@ sealed abstract class Func[A, B] extends Product with Serializable {
 
   def table: Stream[LazyTuple2[A, B]]
 
+  def shrink(shr: B => Stream[B]): Stream[Func[A, B]]
+
   override final def toString = string(Maybe.empty[B])(Show.showA, Show.showA)
 }
 
 object Func {
+
+  private def single[A]: A => Func[Unit, A] = Single(_)
 
   private[scalaprops] final case class Pair[A, B, C](a: Func[A, Func[B, C]]) extends Func[LazyTuple2[A, B], C] {
     override def map[D](f: C => D): Func[LazyTuple2[A, B], D] =
@@ -46,6 +52,13 @@ object Func {
           LazyTuple2(LazyTuple2(x._1, y._1), y._2)
         }
       }
+
+    override def shrink(shr: C => Stream[C]) =
+      a.shrink(_.shrink(shr)).map{
+        case Func.Nil() => Func.Nil[LazyTuple2[A, B], C]()
+        case p => Pair(p)
+      }
+
   }
 
   private[scalaprops] final case class Sum[A, B, C](x: Func[A, C], y: Func[B, C]) extends Func[A \/ B, C] {
@@ -65,6 +78,21 @@ object Func {
       } #::: y.table.map{
         case a => LazyTuple2(a._1.right[A], a._2)
       }
+
+    override def shrink(shr: C => Stream[C]): Stream[Func[A \/ B, C]] = {
+      type T = Func[A \/ B, C]
+
+      def +++(aa: Func[A, C], bb: Func[B, C]): T = (aa, bb) match {
+        case (Func.Nil(), Func.Nil()) => Func.Nil[A \/ B, C]()
+        case _ => Sum(aa, bb)
+      }
+
+      (if(y.notNil) Stream[T](+++(x, Func.Nil())) else Stream.empty[T]) #:::
+      (if(x.notNil) Stream[T](+++(Func.Nil(), y)) else Stream.empty[T]) #:::
+      y.shrink(shr).map(q => +++(x, q)) #:::
+      x.shrink(shr).map(p => +++(p, y))
+    }
+
   }
 
   private[scalaprops] final case class Single[A](a: A) extends Func[Unit, A] {
@@ -76,6 +104,9 @@ object Func {
 
     override def table =
       Stream(LazyTuple2((), a))
+
+    override def shrink(shr: A => Stream[A]) =
+      Func.Nil[Unit, A]() #:: shr(a).map(Func.single)
   }
 
   private[scalaprops] final case class Nil[A, B]() extends Func[A, B] {
@@ -86,11 +117,14 @@ object Func {
       _ => d
 
     override def table = Stream.empty
+
+    override def shrink(shr: B => Stream[B]) =
+      Stream.Empty
   }
 
   private[scalaprops] final case class Table[A, B](a: Stream[LazyTuple2[A, B]])(implicit val A: Equal[A]) extends Func[A, B] {
     override def map[C](f: B => C): Func[A, C] =
-      Table(a.map{case x => LazyTuple2(x._1, f(x._2))})
+      Table(a.map{x => LazyTuple2(x._1, f(x._2))})
 
     override def toAbstract(d: B): A => B =
       aa => a.collectFirst{
@@ -98,6 +132,16 @@ object Func {
       }.getOrElse(d)
 
     override def table = a
+
+    override def shrink(shr: B => Stream[B]): Stream[Func[A, B]] =
+      Shrink.stream(
+        new Shrink[LazyTuple2[A, B]](
+          t => shr(t._2).map(a => LazyTuple2(t._1, a))
+        )
+      ).apply(a).map{
+        case Stream.Empty => Func.Nil[A, B]()
+        case s => Table(s)
+      }
   }
 
   private[scalaprops] final case class Map[A, B, C](
@@ -112,6 +156,12 @@ object Func {
 
     override def table =
       z.table.map{case a => LazyTuple2(y(a._1), a._2)}
+
+    override def shrink(shr: C => Stream[C]): Stream[Func[A, C]] =
+      z.shrink(shr).map{
+        case Func.Nil() => Func.Nil[A, C]()
+        case p => Map(x, y, p)
+      }
   }
 
   implicit def funcFunctor[C]: Functor[({type l[a] = Func[C, a]})#l] =
