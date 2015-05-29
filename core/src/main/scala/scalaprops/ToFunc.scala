@@ -135,7 +135,7 @@ object ToFunc {
       def toFunc[B](f: Byte => B) =
         Func.Table(
           (Byte.MinValue to Byte.MaxValue).map{ x =>
-            x.asInstanceOf[Byte] -> f(x.asInstanceOf[Byte])
+            LazyTuple2(x.asInstanceOf[Byte], f(x.asInstanceOf[Byte]))
           }.toStream
         )
     }
@@ -146,7 +146,7 @@ object ToFunc {
       def toFunc[B](f: Short => B) =
         Func.Table(
           (Short.MinValue to Short.MaxValue).map{ x =>
-            x.asInstanceOf[Short] -> f(x.asInstanceOf[Short])
+            LazyTuple2(x.asInstanceOf[Short], f(x.asInstanceOf[Short]))
           }.toStream
         )
     }

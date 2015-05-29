@@ -13,8 +13,8 @@ sealed abstract class Func[A, B] extends Product with Serializable {
     Fun(this, b, toAbstract(b))
 
   final def string(b: Maybe[B])(implicit A: Show[A], B: Show[B]): String = {
-    val list1 = table.map{ case (x, c) =>
-      A.shows(x) + "->" + B.shows(c)
+    val list1 = table.map{ x =>
+      A.shows(x._1) + "->" + B.shows(x._2)
     }
     val list2 = Foldable[Maybe].toStream(b.map(b => "_->" + B.shows(b)))
 
@@ -23,7 +23,7 @@ sealed abstract class Func[A, B] extends Product with Serializable {
     }.append("}").toString
   }
 
-  def table: Stream[(A, B)]
+  def table: Stream[LazyTuple2[A, B]]
 
   override final def toString = string(Maybe.empty[B])(Show.showA, Show.showA)
 }
@@ -41,9 +41,9 @@ object Func {
     }
 
     override def table =
-      a.table.flatMap{ case (x, q) =>
-        q.table.map{ case (y, c) =>
-          (LazyTuple2(x, y), c)
+      a.table.flatMap{ x =>
+        x._2.table.map{ y =>
+          LazyTuple2(LazyTuple2(x._1, y._1), y._2)
         }
       }
   }
@@ -61,9 +61,9 @@ object Func {
 
     override def table =
       x.table.map{
-        case (x0, c) => x0.left[B] -> c
+        case a => LazyTuple2(a._1.left[B], a._2)
       } #::: y.table.map{
-        case (y0, c) => y0.right[A] -> c
+        case a => LazyTuple2(a._1.right[A], a._2)
       }
   }
 
@@ -75,7 +75,7 @@ object Func {
       _ => a
 
     override def table =
-      Stream(((), a))
+      Stream(LazyTuple2((), a))
   }
 
   private[scalaprops] final case class Nil[A, B]() extends Func[A, B] {
@@ -88,16 +88,16 @@ object Func {
     override def table = Stream.empty
   }
 
-  private[scalaprops] final case class Table[A, B](a: Stream[(A, B)])(implicit val A: Equal[A]) extends Func[A, B] {
+  private[scalaprops] final case class Table[A, B](a: Stream[LazyTuple2[A, B]])(implicit val A: Equal[A]) extends Func[A, B] {
     override def map[C](f: B => C): Func[A, C] =
-      Table(a.map{case (x, y) => x -> f(y)})
+      Table(a.map{case x => LazyTuple2(x._1, f(x._2))})
 
     override def toAbstract(d: B): A => B =
       aa => a.collectFirst{
-        case (x, y) if A.equal(aa, x) => y
+        case x if A.equal(aa, x._1) => x._2
       }.getOrElse(d)
 
-    override def table = a.toStream
+    override def table = a
   }
 
   private[scalaprops] final case class Map[A, B, C](
@@ -111,7 +111,7 @@ object Func {
       x andThen z.toAbstract(d)
 
     override def table =
-      z.table.map{case (x0, c) => (y(x0), c)}
+      z.table.map{case a => LazyTuple2(y(a._1), a._2)}
   }
 
   implicit def funcFunctor[C]: Functor[({type l[a] = Func[C, a]})#l] =
@@ -129,6 +129,6 @@ object Func {
   implicit def equal[A: Equal, B: Equal]: Equal[Func[A, B]] = {
     import scalaz.std.tuple._
     import scalaz.std.stream._
-    Equal.equalBy(_.table)
+    Equal.equalBy(_.table.map(x => (x._1, x._2)))
   }
 }
