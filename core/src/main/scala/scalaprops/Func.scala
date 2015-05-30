@@ -36,6 +36,12 @@ object Func {
 
   private def single[A]: A => Func[Unit, A] = Single(_)
 
+  private[this] def mapR[A, B, C](f: A => B): LazyTuple2[C, A] => LazyTuple2[C, B] =
+    t => LazyTuple2(t._1, f(t._2))
+
+  private[this] def mapL[A, B, C](f: A => B): LazyTuple2[A, C] => LazyTuple2[B, C] =
+    t => LazyTuple2(f(t._1), t._2)
+
   private[scalaprops] final case class Pair[A, B, C](a: Func[A, Func[B, C]]) extends Func[LazyTuple2[A, B], C] {
     override def map[D](f: C => D): Func[LazyTuple2[A, B], D] =
       Pair(a.map(_.map(f)))
@@ -74,9 +80,9 @@ object Func {
 
     override def table =
       x.table.map{
-        a => LazyTuple2(a._1.left[B], a._2)
+        mapL(_.left[B])
       } #::: y.table.map{
-        a => LazyTuple2(a._1.right[A], a._2)
+        mapL(_.right[A])
       }
 
     override def shrink(shr: C => Stream[C]): Stream[Func[A \/ B, C]] = {
@@ -124,7 +130,7 @@ object Func {
 
   private[scalaprops] final case class Table[A, B](a: Stream[LazyTuple2[A, B]])(implicit val A: Equal[A]) extends Func[A, B] {
     override def map[C](f: B => C): Func[A, C] =
-      Table(a.map{x => LazyTuple2(x._1, f(x._2))})
+      Table(a.map(mapR(f)))
 
     override def toAbstract(d: B): A => B =
       aa => a.collectFirst{
@@ -155,7 +161,7 @@ object Func {
       x andThen z.toAbstract(d)
 
     override def table =
-      z.table.map{a => LazyTuple2(y(a._1), a._2)}
+      z.table.map(mapL(y))
 
     override def shrink(shr: C => Stream[C]): Stream[Func[A, C]] =
       z.shrink(shr).map{
