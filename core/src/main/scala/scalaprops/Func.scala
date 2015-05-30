@@ -74,9 +74,9 @@ object Func {
 
     override def table =
       x.table.map{
-        case a => LazyTuple2(a._1.left[B], a._2)
+        a => LazyTuple2(a._1.left[B], a._2)
       } #::: y.table.map{
-        case a => LazyTuple2(a._1.right[A], a._2)
+        a => LazyTuple2(a._1.right[A], a._2)
       }
 
     override def shrink(shr: C => Stream[C]): Stream[Func[A \/ B, C]] = {
@@ -155,7 +155,7 @@ object Func {
       x andThen z.toAbstract(d)
 
     override def table =
-      z.table.map{case a => LazyTuple2(y(a._1), a._2)}
+      z.table.map{a => LazyTuple2(y(a._1), a._2)}
 
     override def shrink(shr: C => Stream[C]): Stream[Func[A, C]] =
       z.shrink(shr).map{
