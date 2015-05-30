@@ -33,6 +33,7 @@ object Common {
   val commonSettings = scalaprops.ScalapropsPlugin.autoImport.scalapropsCoreSettings ++ Seq(
     scalaVersion := Scala211,
     crossScalaVersions := Scala211 :: "2.10.5" :: Nil,
+    resolvers += Opts.resolver.sonatypeSnapshots,
     organization := "com.github.scalaprops",
     description := "property based testing library for Scala",
     homepage := Some(url("https://github.com/scalaprops/scalaprops")),
