@@ -181,4 +181,7 @@ object Func {
     import scalaz.std.stream._
     Equal.equalBy(_.table.map(x => (x._1, x._2)))
   }
+
+  implicit def shrink[A, B](implicit B: Shrink[B]): Shrink[Func[A, B]] =
+    new Shrink[Func[A, B]](_.shrink(B.f))
 }
