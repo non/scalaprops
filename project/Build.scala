@@ -24,16 +24,32 @@ object build extends Build {
       initialCommands in console += "import scalaprops._, scalaz._"
     )
 
+  private[this] val quasiquotesVersion = "2.1.0-M5"
+
   lazy val core = module("core").settings(
     Generator.settings
   ).settings(
     name := coreName,
+    libraryDependencies ++= PartialFunction.condOpt(CrossVersion.partialVersion(scalaVersion.value)){
+      case Some((2, 10)) => List(
+        "org.scalamacros" %% "quasiquotes" % quasiquotesVersion % "test",
+        compilerPlugin("org.scalamacros" % "paradise" % quasiquotesVersion cross CrossVersion.full)
+      )
+    }.toList.flatten,
+    unmanagedSourceDirectories in Test += {
+      val dir = CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 10)) => "scala210"
+        case _ => "scala211"
+      }
+      (sourceDirectory in Test).value / dir
+    },
+    libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value % "test",
     libraryDependencies += "org.scalaz" %% "scalaz-core" % scalazVersion
   )
 
   lazy val scalazlaws = module("scalazlaws").settings(
     name := scalazlawsName
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test")
 
   lazy val scalaprops = module(scalapropsName).settings(
     name := scalapropsName,
@@ -42,7 +58,7 @@ object build extends Build {
     shapelessDependency("test"),
     testFrameworks += new TestFramework("scalaprops.ScalapropsFramework"),
     parallelExecution in Test := false
-  ).dependsOn(core, scalazlaws % "test")
+  ).dependsOn(core % "compile->compile;test->test", scalazlaws % "test")
 
   val sxr = TaskKey[File]("packageSxr")
 

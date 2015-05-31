@@ -52,7 +52,8 @@ object GenTest extends Scalaprops {
     ){ (rs, xs) =>
       val g = Gen.elements(xs.head, xs.tail: _*)
       val r = rs.map(r => g.f(Int.MaxValue, r)._2)
-      (r.toSet == xs.toSet) && (xs.toSet.size == N)
+      Macros.assertEqual(r.toSet, xs.toSet)
+      Macros.assertEqual(xs.toSet.size, N)
     }.toCheckWith(Param.rand(Rand.fromSeed())).toProperties("test Gen.element")
   }
 
@@ -67,9 +68,11 @@ object GenTest extends Scalaprops {
         Gen.sequenceNList(size, Gen.choose(a, b)).map(size -> _)
       }
     ){ case (size, values) =>
-      (values.length == size) && (min <= size && size <= max) && values.forall{
+      Macros.assertEq(values.length, size)
+      Macros.assert(min <= size && size <= max)
+      Macros.assert(values.forall{
         x => a <= x && x <= b
-      }
+      })
     }
   }
 
@@ -89,7 +92,9 @@ object GenTest extends Scalaprops {
   ){ (size, listSize, seed) =>
     val values = Gen[Maybe[Int]].samples(size = size, listSize = listSize, seed = seed)
     val just = values.count(_.isJust)
-    (values.size == listSize) && (just > (listSize / 2)) && (just < listSize)
+    Macros.assertEq(values.size, listSize)
+    Macros.assert(just > (listSize / 2))
+    Macros.assert(just < listSize)
   }
 
   val choose = Property.forAll{ (a: Int, b: Int, size: Int, seed: Long) =>
@@ -107,7 +112,7 @@ object GenTest extends Scalaprops {
 
   val listOfN_2 = Property.forAll{ seed: Long =>
     val size = 3
-    Gen.listOfN(size, Gen[Unit]).map(_.size).samples(seed = seed, listSize = 100).distinct.size == (size + 1)
+    Macros.assertEqual(Gen.listOfN(size, Gen[Unit]).map(_.size).samples(seed = seed, listSize = 100).distinct.size, size + 1)
   }
 
   val arrayOfN = Property.forAll{ (size0: Byte, seed: Long) =>
@@ -128,6 +133,6 @@ object GenTest extends Scalaprops {
 
   val javaEnum = Property.forAll{ seed: Int =>
     val values = Gen[java.util.concurrent.TimeUnit].samples(seed = seed).toSet
-    values == java.util.concurrent.TimeUnit.values().toSet
+    Macros.assertEqual(values, java.util.concurrent.TimeUnit.values().toSet)
   }
 }
