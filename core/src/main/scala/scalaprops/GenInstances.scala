@@ -8,7 +8,9 @@ abstract class GenInstances private[scalaprops] {
     Z.map(z => () => z)
 
   implicit final def f1[A1, Z](implicit A1: Cogen[A1], Z: Gen[Z]): Gen[A1 => Z] =
-    Gen.promote(x => A1.cogen(x, Z))
+    Gen.gen{ (i, r) =>
+      (r.next, a => A1.cogen(a, CogenState(r, Z)).gen.f(i, r)._2)
+    }
 
   implicit final def f2[A1, A2, Z](implicit A1: Cogen[A1], A2: Cogen[A2], Z: Gen[Z]): Gen[(A1, A2) => Z] =
     f1(A1, f1(A2, Z)).map(f => (a1, a2) => f(a1)(a2))

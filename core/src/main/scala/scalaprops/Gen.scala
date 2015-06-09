@@ -288,9 +288,6 @@ object Gen extends GenInstances0 {
   def someOf[A](as: IList[A]): Gen[IList[A]] =
     choose(0, as.length).flatMap(i => pick(i, as))
 
-  def promote[A, B](f: A => Gen[B]): Gen[A => B] =
-    gen((i, r) => (r, a => f(a).f(i, r)._2))
-
   implicit val instance: Monad[Gen] =
     new Monad[Gen] {
       override def bind[A, B](fa: Gen[A])(f: A => Gen[B]) =

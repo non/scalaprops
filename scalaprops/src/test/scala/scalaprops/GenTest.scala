@@ -4,6 +4,7 @@ import scala.util.Random
 import scalaz._
 import scalaz.std.anyVal._
 import scalaz.std.tuple._
+import scalaz.std.string._
 
 object GenTest extends Scalaprops {
 
@@ -129,5 +130,43 @@ object GenTest extends Scalaprops {
   val javaEnum = Property.forAll{ seed: Int =>
     val values = Gen[java.util.concurrent.TimeUnit].samples(seed = seed).toSet
     values == java.util.concurrent.TimeUnit.values().toSet
+  }
+
+
+  val genFunction = {
+    def test1[A: Gen: Cogen](name: String) =
+      test[A, A](s"$name => $name")
+
+    def test[A: Gen: Cogen, B: Gen](name: String) =
+      Property.forAll { seed: Int =>
+        val size = 10
+        val as = Gen[A].infiniteStream(seed = seed).distinct.take(5).toList
+        val values = Gen[A => B].samples(listSize = size, seed = seed).map(as.map(_))
+        val set = values.toSet
+        val result = set.size == size
+        assert(result, s"$name ${set.size} $as $set $values")
+        result
+      }.toProperties(name)
+
+    Properties.list(
+      test1[Long]("Long"),
+      test1[Int]("Int"),
+      test1[Byte]("Byte"),
+      test1[Short]("Short"),
+      test1[Either[Byte, Short]]("Either[Byte, Short]"),
+      test1[Long \/ Int]("""(Long \/ Int)"""),
+      test1[(Int, Byte)]("Tuple2[Int, Byte]"),
+      test1[Option[Int]]("Option[Int]"),
+      test1[Map[Int, Int]]("Map[Int, Int]").andThenParam(Param.maxSize(10)),
+      test1[Int ==>> Int]("(Int ==>> Int)").andThenParam(Param.maxSize(10)),
+      test1[IList[Int]]("IList[Int]").andThenParam(Param.maxSize(10)),
+      test1[Byte \&/ Byte]("""Byte \&/ Byte)"""),
+      test[Int, List[Int]]("Int => List[Int]"),
+      test[List[Int], Int]("List[Int] => Int").andThenParam(Param.maxSize(20)),
+      test[Option[Byte], Byte]("Option[Byte] => Byte"),
+      test[Byte, Option[Byte]]("Byte => Option[Byte]"),
+      test[Either[Byte, Boolean], Int]("Either[Byte, Boolean] => Int"),
+      test[Int, Map[Int, Boolean]]("Int => Map[Int, Boolean]")
+    ).andThenParam(Param.minSuccessful(50))
   }
 }
