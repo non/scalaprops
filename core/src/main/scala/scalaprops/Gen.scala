@@ -17,7 +17,7 @@ final case class Gen[A] private(f: (Int, Rand) => (Rand, A)) {
   def flatMap[B](g: A => Gen[B]): Gen[B] =
     gen{ (i, r) =>
       val (r0, a) = f(i, r)
-      g(a).f(i, r0)
+      g(a).f(i, Rand.fromSeed(r.nextInt._2 + r0.nextInt._2))
     }
 
   def resize(s: Int): Gen[A] =
