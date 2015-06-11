@@ -7,6 +7,7 @@ object build extends Build {
   private[this] val coreName = "scalaprops-core"
   private[this] val allName = "scalaprops-all"
   private[this] val scalazlawsName = "scalaprops-scalazlaws"
+  private[this] val spirelawsName = "scalaprops-spirelaws"
   private[this] val scalapropsName = "scalaprops"
 
   private[this] val scalazVersion = "7.1.2"
@@ -15,6 +16,7 @@ object build extends Build {
     coreName ::
     allName ::
     scalazlawsName ::
+    spirelawsName ::
     scalapropsName ::
     Nil
   )
@@ -33,6 +35,13 @@ object build extends Build {
 
   lazy val scalazlaws = module("scalazlaws").settings(
     name := scalazlawsName
+  ).dependsOn(core)
+
+  lazy val spirelaws = module("spirelaws").settings(
+    name := spirelawsName,
+    libraryDependencies += "org.spire-math" %% "spire" % "0.10.1",
+    testFrameworks += new TestFramework("scalaprops.ScalapropsFramework"),
+    parallelExecution in Test := false
   ).dependsOn(core)
 
   lazy val scalaprops = module(scalapropsName).settings(
